@@ -32,6 +32,14 @@ final class DocumentStore {
     static let shared = DocumentStore()
 
     private(set) var url: URL?
+    /// A new note that has never been saved — there is a document, but no file behind it yet
+    private(set) var isUntitled = false
+    /// Bumped on every New Note, so the editor is rebuilt (and takes focus) even when one
+    /// untitled note replaces another
+    private(set) var untitledSerial = 0
+
+    /// Something is open: a file, or an untitled note
+    var hasDocument: Bool { url != nil || isUntitled }
     private(set) var blocks: [IdentifiedBlock] = []
     /// Bumped on every re-render. Comparing thousands of AttributedStrings to notice a change
     /// is itself expensive, so everything downstream watches this Int instead.
@@ -87,7 +95,8 @@ final class DocumentStore {
     @ObservationIgnored private var isAdjustingSelection = false
 
     var title: String {
-        url?.deletingPathExtension().lastPathComponent
+        if isUntitled { return "Untitled" }
+        return url?.deletingPathExtension().lastPathComponent
             ?? folder?.lastPathComponent
             ?? "Domark"
     }
@@ -103,6 +112,22 @@ final class DocumentStore {
     nonisolated static func isReadable(_ url: URL) -> Bool {
         ["md", "markdown", "mdown", "mkd", "mdx", "txt", "text"]
             .contains(url.pathExtension.lowercased())
+    }
+
+    // MARK: - New note
+
+    /// ⌘N — a blank, unsaved note. Any open folder stays in the sidebar; the first ⌘S asks where it goes.
+    func newNote() {
+        guard confirmDiscard() else { return }
+        closeDocument()
+        isUntitled = true
+        untitledSerial += 1
+        renderNow()
+        // A blank page has nothing to read — start in the editor. Split already has one.
+        let defaults = UserDefaults.standard
+        if ViewMode(rawValue: defaults.string(forKey: ViewModeSetting.key) ?? "") ?? .preview == .preview {
+            defaults.set(ViewMode.editor.rawValue, forKey: ViewModeSetting.key)
+        }
     }
 
     // MARK: - Opening
@@ -228,6 +253,7 @@ final class DocumentStore {
     }
 
     func save() {
+        if isUntitled { saveAs(); return }
         guard let url, isDirty else { return }
         do {
             try draft.write(to: url, atomically: true, encoding: .utf8)
@@ -235,11 +261,40 @@ final class DocumentStore {
             isDirty = false
             externalChange = nil
         } catch {
-            let alert = NSAlert()
-            alert.messageText = "Couldn’t Save"
-            alert.informativeText = error.localizedDescription
-            alert.runModal()
+            Self.showSaveError(error)
         }
+    }
+
+    /// ⇧⌘S, and the first ⌘S of an untitled note. Starts in the open folder so notes land
+    /// next to the files being browsed.
+    func saveAs() {
+        guard hasDocument else { return }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
+        panel.nameFieldStringValue = url?.lastPathComponent ?? "Untitled.md"
+        panel.directoryURL = folder ?? url?.deletingLastPathComponent()
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let target = panel.url else { return }
+        do {
+            try draft.write(to: target, atomically: true, encoding: .utf8)
+        } catch {
+            Self.showSaveError(error)
+            return
+        }
+        // Disk now matches the draft, so openFile's reload() leaves the draft and the caret alone
+        savedSource = draft
+        isDirty = false
+        isUntitled = false
+        externalChange = nil
+        rescan() // a note saved inside the open folder shows up in the sidebar right away
+        openFile(target)
+    }
+
+    private static func showSaveError(_ error: Error) {
+        let alert = NSAlert()
+        alert.messageText = "Couldn’t Save"
+        alert.informativeText = error.localizedDescription
+        alert.runModal()
     }
 
     /// ⌘R — re-read the file, and rescan the file list too when a folder is open
@@ -273,9 +328,9 @@ final class DocumentStore {
     /// Asks before discarding unsaved work. Returns true when it is safe to continue.
     @discardableResult
     func confirmDiscard() -> Bool {
-        guard isDirty, let url else { return true }
+        guard isDirty else { return true }
         let alert = NSAlert()
-        alert.messageText = "Unsaved changes in “\(url.lastPathComponent)”"
+        alert.messageText = "Unsaved changes in “\(url?.lastPathComponent ?? "Untitled")”"
         alert.informativeText = "Your edits will be lost if you continue."
         alert.addButton(withTitle: "Save")
         alert.addButton(withTitle: "Don’t Save")
@@ -307,6 +362,7 @@ final class DocumentStore {
         fileWatcher?.stop()
         fileWatcher = nil
         url = nil
+        isUntitled = false
         isAdjustingSelection = true
         selection = nil
         isAdjustingSelection = false
@@ -368,7 +424,8 @@ final class DocumentStore {
     private func render(debounced: Bool) {
         let source = draft
         let theme = theme
-        let baseURL = url
+        // An unsaved note borrows the open folder, so its relative image paths already resolve
+        let baseURL = url ?? folder?.appending(path: "Untitled.md")
 
         renderTask?.cancel()
         renderTask = Task { @MainActor [weak self] in

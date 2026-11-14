@@ -9,6 +9,8 @@ import SwiftUI
 struct SourceEditorView: NSViewRepresentable {
     @Binding var text: String
     let theme: Theme
+    /// Take the keyboard as soon as it appears — for a new note you just want to start typing
+    var autofocus = false
 
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSTextView.scrollableTextView()
@@ -37,6 +39,10 @@ struct SourceEditorView: NSViewRepresentable {
         textView.textContainerInset = NSSize(width: 14, height: 16)
         textView.string = text
         apply(theme, to: textView)
+        if autofocus {
+            // Not in a window yet — wait one turn of the run loop
+            DispatchQueue.main.async { textView.window?.makeFirstResponder(textView) }
+        }
         return scrollView
     }
 

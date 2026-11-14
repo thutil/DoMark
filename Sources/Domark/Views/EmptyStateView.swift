@@ -4,6 +4,7 @@ struct EmptyStateView: View {
     let theme: Theme
     let isTargeted: Bool
     let recents: [RecentItem]
+    let onNewNote: () -> Void
     let onOpenFile: () -> Void
     let onOpenFolder: () -> Void
     let onOpenRecent: (RecentItem) -> Void
@@ -36,6 +37,8 @@ struct EmptyStateView: View {
                 .foregroundStyle(.secondary)
 
             HStack(spacing: theme.base * 0.6) {
+                Button("New Note", action: onNewNote)
+                    .buttonStyle(.glass)
                 Button("Open File…", action: onOpenFile)
                     .buttonStyle(.glassProminent)
                 Button("Open Folder…", action: onOpenFolder)
