@@ -8,8 +8,13 @@ struct ContentView: View {
     @AppStorage(AppearanceSetting.key) private var appearanceRaw: String = AppearanceSetting.system.rawValue
     @AppStorage(FontSetting.proseKey) private var proseFamily: String = FontSetting.defaultProse
     @AppStorage(FontSetting.codeKey) private var codeFamily: String = FontSetting.defaultCode
+    @AppStorage(OutlineSetting.key) private var showsOutline = false
 
     @State private var isTargeted = false
+    /// The first block on screen, for the outline's highlight
+    @State private var topBlockID: Int?
+    /// Set by the outline, consumed by the preview — which is the one holding the scroll proxy
+    @State private var outlineJump: Int?
 
     private var theme: Theme { Theme(base: baseFontSize, prose: proseFamily, code: codeFamily) }
     private var mode: ViewMode { ViewMode(rawValue: modeRaw) ?? .preview }
@@ -41,6 +46,14 @@ struct ContentView: View {
         .navigationDocument(store.url ?? URL(fileURLWithPath: "/"))
         .toolbar { toolbar }
         .overlay(alignment: .bottomTrailing) { zoomPill }
+        // After the zoom pill, so the pill floats over the page rather than the panel
+        .inspector(isPresented: outlinePresented) {
+            OutlineView(
+                outline: store.outline,
+                current: store.outline.current(topBlockID: topBlockID),
+                onSelect: { outlineJump = $0.blockID }
+            )
+        }
         .background(DocumentEditedMarker(isEdited: store.isDirty))
         .dropDestination(for: URL.self) { urls, _ in
             // Accepts both .md files and folders
@@ -61,6 +74,15 @@ struct ContentView: View {
         }
         // The find bar belongs to the preview; the editor has NSTextView's own
         .onChange(of: modeRaw) { if !mode.showsPreview { find.dismiss() } }
+    }
+
+    /// The outline only moves the preview, so it has nothing to do in Edit mode — hidden there,
+    /// but the preference is kept for when the preview comes back
+    private var outlinePresented: Binding<Bool> {
+        Binding(
+            get: { showsOutline && mode.showsPreview && store.url != nil },
+            set: { if mode.showsPreview && store.url != nil { showsOutline = $0 } }
+        )
     }
 
     /// Everything the highlighted blocks are derived from, in one comparable value
@@ -133,6 +155,7 @@ struct ContentView: View {
                             .id(item.id) // the anchor the find bar scrolls to
                     }
                 }
+                .scrollTargetLayout()
                 .frame(maxWidth: theme.contentWidth, alignment: .leading)
                 .padding(.horizontal, mode == .split ? theme.base * 1.6 : theme.pagePadding)
                 .padding(.vertical, theme.pagePadding)
@@ -140,6 +163,14 @@ struct ContentView: View {
             }
             // A new file should start at the top, not inherit the previous file's scroll offset
             .id(store.url)
+            .onScrollTargetVisibilityChange(idType: Int.self, threshold: 0.01) { visible in
+                topBlockID = visible.min()
+            }
+            .onChange(of: outlineJump) {
+                guard let outlineJump else { return }
+                reveal(outlineJump, with: proxy, anchor: .top)
+                self.outlineJump = nil // so picking the same heading again still fires
+            }
             // Both are needed: stepping onto a hit in another block changes the id, while
             // stepping between two hits inside the same block only changes the index.
             .onChange(of: find.currentBlockID) { reveal(find.currentBlockID, with: proxy) }
@@ -251,6 +282,14 @@ struct ContentView: View {
         }
         ToolbarSpacer(.fixed, placement: .primaryAction)
         ToolbarItem(placement: .primaryAction) {
+            Button { showsOutline.toggle() } label: {
+                Label("Outline", systemImage: "list.bullet.indent")
+            }
+            .disabled(store.url == nil || !mode.showsPreview)
+            .help("Outline (⌥⌘0)")
+        }
+        ToolbarSpacer(.fixed, placement: .primaryAction)
+        ToolbarItem(placement: .primaryAction) {
             Button { store.showOpenFolderPanel() } label: {
                 Label("Open Folder…", systemImage: "folder")
             }
@@ -311,6 +350,10 @@ enum FontSize {
 
 enum ViewModeSetting {
     static let key = "viewMode"
+}
+
+enum OutlineSetting {
+    static let key = "showsOutline"
 }
 
 /// Watched as a single value so one `onChange` covers every input to the find highlighter

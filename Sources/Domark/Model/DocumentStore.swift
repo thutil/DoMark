@@ -38,6 +38,8 @@ final class DocumentStore {
     private(set) var renderVersion = 0
     /// Heading slug → the block a `#heading` link scrolls to
     private(set) var anchors: [String: Int] = [:]
+    /// H1–H3 for the outline panel
+    private(set) var outline = Outline()
     private(set) var loadError: String?
 
     /// The text being edited. The preview renders from this, not from disk.
@@ -313,6 +315,7 @@ final class DocumentStore {
         isDirty = false
         externalChange = nil
         blocks = []
+        outline = Outline()
         loadError = nil
     }
 
@@ -375,11 +378,12 @@ final class DocumentStore {
             }
             let parsed = await Task.detached(priority: .userInitiated) {
                 let blocks = BlockBuilder.parse(source: source, theme: theme, baseURL: baseURL).identified
-                return (blocks, Anchor.map(for: blocks))
+                return (blocks, Anchor.map(for: blocks), Outline(blocks: blocks))
             }.value
             guard !Task.isCancelled, let self else { return }
             self.blocks = parsed.0
             self.anchors = parsed.1
+            if self.outline != parsed.2 { self.outline = parsed.2 }
             self.renderVersion += 1
         }
     }

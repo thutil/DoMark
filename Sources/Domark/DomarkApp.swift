@@ -29,6 +29,7 @@ struct DomarkCommands: Commands {
     @AppStorage(FontSize.key) private var baseFontSize: Double = Theme.defaultBase
     @AppStorage(ViewModeSetting.key) private var modeRaw: String = ViewMode.preview.rawValue
     @AppStorage(AppearanceSetting.key) private var appearanceRaw: String = AppearanceSetting.system.rawValue
+    @AppStorage(OutlineSetting.key) private var showsOutline = false
 
     var body: some Commands {
         // Single-document app — there is no New
@@ -80,6 +81,10 @@ struct DomarkCommands: Commands {
                 Button(mode.label) { modeRaw = mode.rawValue }
                     .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: [.command, .control])
             }
+            Divider()
+            Button(showsOutline ? "Hide Outline" : "Show Outline") { showsOutline.toggle() }
+                .keyboardShortcut("0", modifiers: [.command, .option])
+                .disabled(store.url == nil || !mode.showsPreview)
             Divider()
             ForEach(AppearanceSetting.allCases, id: \.self) { setting in
                 Button(setting.label) { appearanceRaw = setting.rawValue }
