@@ -81,8 +81,10 @@ struct ContentView: View {
             EmptyStateView(
                 theme: theme,
                 isTargeted: isTargeted,
+                recents: store.recents.items,
                 onOpenFile: { store.showOpenPanel() },
-                onOpenFolder: { store.showOpenFolderPanel() }
+                onOpenFolder: { store.showOpenFolderPanel() },
+                onOpenRecent: { store.openRecent($0) }
             )
         } else if let loadError = store.loadError {
             ContentUnavailableView("Couldn’t Open File", systemImage: "exclamationmark.triangle", description: Text(loadError))

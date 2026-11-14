@@ -37,6 +37,16 @@ struct DomarkCommands: Commands {
                 .keyboardShortcut("o")
             Button("Open Folder…") { store.showOpenFolderPanel() }
                 .keyboardShortcut("o", modifiers: [.command, .shift])
+
+            Menu("Open Recent") {
+                let items = store.recents.items
+                ForEach(items) { item in
+                    Button(item.menuTitle(among: items)) { store.openRecent(item) }
+                }
+                Divider()
+                Button("Clear Menu") { store.recents.clear() }
+            }
+            .disabled(store.recents.items.isEmpty)
         }
 
         CommandGroup(replacing: .saveItem) {

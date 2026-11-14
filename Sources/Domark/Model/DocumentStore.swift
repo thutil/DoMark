@@ -56,6 +56,8 @@ final class DocumentStore {
     private(set) var folder: URL?
     private(set) var tree: [FileNode] = []
 
+    let recents = RecentItems()
+
     /// Sidebar selection — assigning to it opens that file
     var selection: URL? {
         didSet {
@@ -123,10 +125,16 @@ final class DocumentStore {
         externalChange = nil
         reload()
         fileWatcher = FileWatcher(url: url) { [weak self] in self?.reload() }
+        // Walking through a folder is not opening things: the folder is already remembered,
+        // and a few ⌘] presses would otherwise push everything else off the list
+        if loadError == nil, !isInsideFolder(url) {
+            recents.note(url, isFolder: false)
+        }
     }
 
     func openFolder(_ url: URL) {
         folder = url
+        recents.note(url, isFolder: true)
         rescan()
         // Open the first file right away so the window is never blank
         if let first = FolderScanner.flatten(tree).first {
@@ -134,6 +142,28 @@ final class DocumentStore {
         } else {
             closeDocument()
         }
+    }
+
+    /// A missing path is only found out on click: checking while drawing the menu could hang on a
+    /// network volume, and would drop entries from a drive that is merely unplugged for now
+    func openRecent(_ item: RecentItem) {
+        guard item.url != folder?.standardizedFileURL, item.url != url?.standardizedFileURL else { return }
+        guard FileManager.default.fileExists(atPath: item.url.path(percentEncoded: false)) else {
+            recents.remove(item)
+            let alert = NSAlert()
+            alert.messageText = "“\(item.name)” can’t be found"
+            alert.informativeText = "It may have been moved, renamed or deleted, so it was removed from Open Recent."
+            alert.runModal()
+            return
+        }
+        open(item.url)
+    }
+
+    private func isInsideFolder(_ url: URL) -> Bool {
+        guard let folder else { return false }
+        var root = folder.standardizedFileURL.path(percentEncoded: false)
+        if !root.hasSuffix("/") { root += "/" }
+        return url.standardizedFileURL.path(percentEncoded: false).hasPrefix(root)
     }
 
     func rescan() {
