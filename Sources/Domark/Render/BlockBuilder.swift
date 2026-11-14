@@ -53,7 +53,7 @@ struct BlockBuilder {
             let code = node.code.trimmingCharacters(in: .newlines)
             return [.codeBlock(
                 language: (language?.isEmpty ?? true) ? nil : language,
-                code: AttributedString(code),
+                code: SyntaxHighlighter.highlight(code, language: (language?.isEmpty ?? true) ? nil : language),
                 isWide: Self.needsHorizontalScroll(code)
             )]
 
