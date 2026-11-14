@@ -17,6 +17,8 @@ indirect enum RenderBlock: Equatable, Sendable {
     case aligned(ColumnAlign, [RenderBlock])
     /// From HTML: `<img>` tags laid out in a row that wraps — a logo, a line of badges
     case images([SizedImage])
+    /// `$$…$$` or a ```` ```math ```` fence: TeX set on its own line
+    case math(String)
 }
 
 struct SizedImage: Equatable, Sendable {

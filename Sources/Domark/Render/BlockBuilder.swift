@@ -15,7 +15,7 @@ struct BlockBuilder {
         // swift-markdown turns on cmark's SMART option by default, which rewrites
         // " into “ ”, -- into – and ... into …  That silently corrupts anything meant to be
         // copied back out — a `--flag` in a sentence would come out as an en dash.
-        let document = Document(parsing: source, options: [.disableSmartOpts])
+        let document = Document(parsing: MathSource.protect(source), options: [.disableSmartOpts])
         let builder = BlockBuilder(theme: theme, baseURL: baseURL)
         return builder.blocks(in: document)
     }
@@ -55,6 +55,7 @@ struct BlockBuilder {
             let language = node.language?.trimmingCharacters(in: .whitespaces)
             let code = node.code.trimmingCharacters(in: .newlines)
             let name = (language?.isEmpty ?? true) ? nil : language
+            if name?.lowercased() == "math" { return [.math(code)] }
             return [.codeBlock(
                 language: name,
                 code: SyntaxHighlighter.highlight(code, language: name),

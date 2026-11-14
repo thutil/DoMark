@@ -17,6 +17,12 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Domark"
 cp Bundle/Info.plist "$APP/Contents/Info.plist"
 
+# Package resources (SwiftMath's fonts). Bundle.module looks for them in Contents/Resources;
+# without this an installed copy finds no math fonts and stops the first time it draws a formula.
+for bundle in "$(dirname "$BIN")"/*.bundle; do
+  [ -d "$bundle" ] && cp -R "$bundle" "$APP/Contents/Resources/"
+done
+
 # Icon — generated on demand if missing. Edit its look in Icon/make-icon.swift
 [ -f Icon/Domark.icns ] || swift Icon/make-icon.swift
 cp Icon/Domark.icns "$APP/Contents/Resources/Domark.icns"
