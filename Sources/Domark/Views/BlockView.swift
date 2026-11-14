@@ -59,6 +59,27 @@ struct BlockView: View, @MainActor Equatable {
 
         case let .image(url, alt):
             ImageBlockView(url: url, alt: alt, theme: theme)
+
+        case let .details(summary, content):
+            DetailsBlockView(summary: summary, content: content, theme: theme)
+
+        case let .aligned(alignment, children):
+            let horizontal: HorizontalAlignment = switch alignment {
+            case .leading: .leading
+            case .center: .center
+            case .trailing: .trailing
+            }
+            VStack(alignment: horizontal, spacing: theme.blockSpacing) {
+                ForEach(children.indices, id: \.self) { index in
+                    BlockView(block: children[index], theme: theme).equatable()
+                }
+            }
+            .multilineTextAlignment(alignment == .center ? .center : alignment == .trailing ? .trailing : .leading)
+            .environment(\.blockAlignment, horizontal)
+            .frame(maxWidth: .infinity, alignment: Alignment(horizontal: horizontal, vertical: .center))
+
+        case let .images(images):
+            ImageRowView(images: images, theme: theme)
         }
     }
 

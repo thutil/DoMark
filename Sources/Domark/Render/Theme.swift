@@ -57,6 +57,7 @@ struct Theme: Equatable, Sendable {
     // `Color.secondary` already carries ~50% alpha, so multiplying it again landed at 6%
     // instead of the intended 13%. `textColor` is fully opaque, so this percentage is real.
     var codeBackground: Color { Color(nsColor: .textColor).opacity(0.075) }
+    var keyBackground: Color { Color(nsColor: .textColor).opacity(0.14) }
     var rule: Color { Color(nsColor: .separatorColor) }
     var quoteBar: Color { Color.accentColor.opacity(0.55) }
 

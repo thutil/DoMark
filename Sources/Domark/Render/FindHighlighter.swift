@@ -120,6 +120,12 @@ private final class Walker {
         case let .quote(children):
             return .quote(visit(children))
 
+        case let .aligned(alignment, children):
+            return .aligned(alignment, visit(children))
+
+        case let .details(summary, content):
+            return .details(summary: mark(summary), content: visit(content))
+
         case let .list(ordered, start, items):
             var marked: [ListEntry] = []
             marked.reserveCapacity(items.count)
@@ -137,7 +143,7 @@ private final class Walker {
             }
             return .table(header: markedHeader, rows: markedRows, alignments: alignments)
 
-        case .thematicBreak, .image:
+        case .thematicBreak, .image, .images:
             // Nothing readable to search: a rule has no text, and alt text is not on screen
             return block
         }

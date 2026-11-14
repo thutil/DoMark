@@ -14,6 +14,19 @@ final class ImageCache: @unchecked Sendable {
     func image(for url: URL) -> NSImage? { images.object(forKey: url as NSURL) }
 
     func store(_ image: NSImage, for url: URL) { images.setObject(image, forKey: url as NSURL) }
+
+    /// Reads and decodes off the main thread, then remembers the result
+    @MainActor
+    func load(_ url: URL) async -> NSImage? {
+        if let cached = image(for: url) { return cached }
+        // Only the bytes cross the thread boundary; NSImage is built back on the main actor
+        let data = await Task.detached(priority: .userInitiated) {
+            try? Data(contentsOf: url)
+        }.value
+        guard let data, let loaded = NSImage(data: data) else { return nil }
+        store(loaded, for: url)
+        return loaded
+    }
 }
 
 struct ImageBlockView: View {
@@ -62,17 +75,10 @@ struct ImageBlockView: View {
 
     private func load() async {
         guard let url, image == nil else { return }
-
-        // Only the bytes cross the thread boundary; NSImage is built back on the main actor
-        let data = await Task.detached(priority: .userInitiated) {
-            try? Data(contentsOf: url)
-        }.value
-
-        guard let data, let loaded = NSImage(data: data) else {
+        guard let loaded = await ImageCache.shared.load(url) else {
             failed = true
             return
         }
-        ImageCache.shared.store(loaded, for: url)
         image = loaded
         failed = false
     }

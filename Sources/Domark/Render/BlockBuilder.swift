@@ -20,25 +20,28 @@ struct BlockBuilder {
         return builder.blocks(in: document)
     }
 
-    private var inlineResolver: InlineBuilder {
+    var inlineResolver: InlineBuilder {
         InlineBuilder(theme: theme, size: theme.base, baseURL: baseURL)
     }
 
-    func blocks(in markup: Markup) -> [RenderBlock] {
-        markup.children.flatMap { block($0) }
+    func headingBuilder(_ level: Int) -> InlineBuilder {
+        InlineBuilder(
+            theme: theme,
+            size: theme.base * Theme.headingScale(level),
+            weight: level <= 2 ? .bold : .semibold,
+            baseURL: baseURL
+        )
     }
 
-    private func block(_ markup: Markup) -> [RenderBlock] {
+    func blocks(in markup: Markup) -> [RenderBlock] {
+        blocks(of: Array(markup.children))
+    }
+
+    func block(_ markup: Markup) -> [RenderBlock] {
         switch markup {
         case let node as Heading:
             let level = min(max(node.level, 1), 6)
-            let inline = InlineBuilder(
-                theme: theme,
-                size: theme.base * Theme.headingScale(level),
-                weight: level <= 2 ? .bold : .semibold,
-                baseURL: baseURL
-            )
-            return [.heading(level: level, text: inline.attributed(node))]
+            return [.heading(level: level, text: headingBuilder(level).attributed(node))]
 
         case let node as Paragraph:
             // A paragraph holding nothing but an image becomes a real image, not alt text
@@ -51,16 +54,18 @@ struct BlockBuilder {
         case let node as CodeBlock:
             let language = node.language?.trimmingCharacters(in: .whitespaces)
             let code = node.code.trimmingCharacters(in: .newlines)
+            let name = (language?.isEmpty ?? true) ? nil : language
             return [.codeBlock(
-                language: (language?.isEmpty ?? true) ? nil : language,
-                code: SyntaxHighlighter.highlight(code, language: (language?.isEmpty ?? true) ? nil : language),
+                language: name,
+                code: SyntaxHighlighter.highlight(code, language: name),
                 isWide: Self.needsHorizontalScroll(code)
             )]
 
         case let node as HTMLBlock:
-            // Raw HTML is not rendered — show it as code so nothing is hidden
+            if let rendered = htmlBlocks(node.rawHTML) { return rendered }
+            // HTML outside the supported subset is shown as code so nothing is hidden
             let html = node.rawHTML.trimmingCharacters(in: .newlines)
-            return [.codeBlock(language: "html", code: AttributedString(html), isWide: Self.needsHorizontalScroll(html))]
+            return [.codeBlock(language: "html", code: SyntaxHighlighter.highlight(html, language: "html"), isWide: Self.needsHorizontalScroll(html))]
 
         case let node as BlockQuote:
             return [.quote(blocks(in: node))]

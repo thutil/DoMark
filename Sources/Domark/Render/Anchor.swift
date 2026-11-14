@@ -61,7 +61,7 @@ enum Anchor {
                 seen[base] = count + 1
                 map[count == 0 ? base : "\(base)-\(count)"] = id
 
-            case let .quote(children):
+            case let .quote(children), let .aligned(_, children), let .details(_, children):
                 for child in children { visit(child, id: id) }
 
             case let .list(_, _, items):
