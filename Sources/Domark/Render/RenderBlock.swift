@@ -11,6 +11,20 @@ indirect enum RenderBlock: Equatable, Sendable {
     case table(header: [AttributedString], rows: [[AttributedString]], alignments: [ColumnAlign])
     case thematicBreak
     case image(url: URL?, alt: String)
+    /// From HTML: `<details>` — collapsed until the reader opens it
+    case details(summary: AttributedString, content: [RenderBlock])
+    /// From HTML: `align="center"` / `align="right"` around other blocks
+    case aligned(ColumnAlign, [RenderBlock])
+    /// From HTML: `<img>` tags laid out in a row that wraps — a logo, a line of badges
+    case images([SizedImage])
+}
+
+struct SizedImage: Equatable, Sendable {
+    var url: URL?
+    var alt: String
+    /// From the tag's width/height attributes; nil keeps the image's own size
+    var width: CGFloat?
+    var height: CGFloat?
 }
 
 struct ListEntry: Equatable, Sendable {
