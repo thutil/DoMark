@@ -15,7 +15,9 @@ struct CodeBlockView: View {
             // A nested ScrollView per code block is expensive to keep alive while the page
             // scrolls, so only the blocks that actually overflow get one.
             if isWide {
-                ScrollView(.horizontal) { text }
+                // Room past the end of the longest line, so scrolling all the way brings
+                // its last characters out from under the badge
+                ScrollView(.horizontal) { text.padding(.trailing, theme.base * 4) }
                     .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
             } else {
                 text
@@ -58,6 +60,13 @@ struct CodeBlockView: View {
         }
         .padding(.horizontal, theme.base * 0.6)
         .padding(.vertical, theme.base * 0.3)
+        // Opaque, in the block's own tint: a long line runs underneath the badge, and a
+        // see-through one left the two sets of letters printed on top of each other
+        .background {
+            RoundedRectangle(cornerRadius: 6)
+                .fill(theme.codeBackground)
+                .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
+        }
         .padding(theme.base * 0.3)
     }
 
