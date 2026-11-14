@@ -52,6 +52,14 @@ struct InlineBuilder {
             return leaf(node.string, style: style, link: link)
 
         case let node as InlineCode:
+            if node.code.first == MathSource.marker {
+                // `$…$`, wrapped as a code span by MathSource. The TeX stays in the text so
+                // copying and searching still see it; the view draws the formula over it.
+                let latex = String(node.code.dropFirst())
+                var piece = leaf(latex, style: style, link: link)
+                piece[InlineMathAttribute.self] = latex
+                return piece
+            }
             return leaf(node.code, style: style.union(.code), link: link)
 
         case is SoftBreak:

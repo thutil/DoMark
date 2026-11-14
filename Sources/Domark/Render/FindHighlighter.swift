@@ -143,7 +143,7 @@ private final class Walker {
             }
             return .table(header: markedHeader, rows: markedRows, alignments: alignments)
 
-        case .thematicBreak, .image, .images:
+        case .thematicBreak, .image, .images, .math:
             // Nothing readable to search: a rule has no text, and alt text is not on screen
             return block
         }

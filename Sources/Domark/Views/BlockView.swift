@@ -19,9 +19,15 @@ struct BlockView: View, @MainActor Equatable {
                 .padding(.top, level <= 2 ? theme.base * 0.7 : theme.base * 0.25)
 
         case let .paragraph(text):
-            Text(text)
-                .lineSpacing(theme.paragraphLeading)
-                .fixedSize(horizontal: false, vertical: true)
+            Group {
+                if InlineMathText.containsMath(text) {
+                    InlineMathText(text: text, theme: theme)
+                } else {
+                    Text(text)
+                }
+            }
+            .lineSpacing(theme.paragraphLeading)
+            .fixedSize(horizontal: false, vertical: true)
 
         case let .codeBlock(language, code, isWide):
             CodeBlockView(language: language, code: code, isWide: isWide, theme: theme)
@@ -80,6 +86,9 @@ struct BlockView: View, @MainActor Equatable {
 
         case let .images(images):
             ImageRowView(images: images, theme: theme)
+
+        case let .math(latex):
+            MathBlockView(latex: latex, theme: theme)
         }
     }
 
