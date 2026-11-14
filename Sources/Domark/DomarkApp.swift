@@ -32,8 +32,10 @@ struct DomarkCommands: Commands {
     @AppStorage(OutlineSetting.key) private var showsOutline = false
 
     var body: some Commands {
-        // Single-document app — there is no New
         CommandGroup(replacing: .newItem) {
+            Button("New Note") { store.newNote() }
+                .keyboardShortcut("n")
+            Divider()
             Button("Open File…") { store.showOpenPanel() }
                 .keyboardShortcut("o")
             Button("Open Folder…") { store.showOpenFolderPanel() }
@@ -53,7 +55,11 @@ struct DomarkCommands: Commands {
         CommandGroup(replacing: .saveItem) {
             Button("Save") { store.save() }
                 .keyboardShortcut("s")
-                .disabled(!store.isDirty)
+                .disabled(!store.isDirty && !store.isUntitled)
+
+            Button("Save As…") { store.saveAs() }
+                .keyboardShortcut("s", modifiers: [.command, .shift])
+                .disabled(!store.hasDocument)
 
             Button("Reload") { store.refresh() }
                 .keyboardShortcut("r")
@@ -63,7 +69,7 @@ struct DomarkCommands: Commands {
 
             Button("Close") { store.close() }
                 .keyboardShortcut("w", modifiers: [.command, .shift])
-                .disabled(store.url == nil && store.folder == nil)
+                .disabled(!store.hasDocument && store.folder == nil)
         }
 
         CommandGroup(after: .textEditing) {
@@ -84,7 +90,7 @@ struct DomarkCommands: Commands {
             Divider()
             Button(showsOutline ? "Hide Outline" : "Show Outline") { showsOutline.toggle() }
                 .keyboardShortcut("0", modifiers: [.command, .option])
-                .disabled(store.url == nil || !mode.showsPreview)
+                .disabled(!store.hasDocument || !mode.showsPreview)
             Divider()
             ForEach(AppearanceSetting.allCases, id: \.self) { setting in
                 Button(setting.label) { appearanceRaw = setting.rawValue }

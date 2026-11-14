@@ -80,8 +80,8 @@ struct ContentView: View {
     /// but the preference is kept for when the preview comes back
     private var outlinePresented: Binding<Bool> {
         Binding(
-            get: { showsOutline && mode.showsPreview && store.url != nil },
-            set: { if mode.showsPreview && store.url != nil { showsOutline = $0 } }
+            get: { showsOutline && mode.showsPreview && store.hasDocument },
+            set: { if mode.showsPreview && store.hasDocument { showsOutline = $0 } }
         )
     }
 
@@ -99,11 +99,12 @@ struct ContentView: View {
 
     @ViewBuilder
     private func detail(_ shown: [IdentifiedBlock]) -> some View {
-        if store.url == nil {
+        if !store.hasDocument {
             EmptyStateView(
                 theme: theme,
                 isTargeted: isTargeted,
                 recents: store.recents.items,
+                onNewNote: { store.newNote() },
                 onOpenFile: { store.showOpenPanel() },
                 onOpenFolder: { store.showOpenFolderPanel() },
                 onOpenRecent: { store.openRecent($0) }
@@ -139,7 +140,9 @@ struct ContentView: View {
 
     private var editor: some View {
         @Bindable var store = store
-        return SourceEditorView(text: $store.draft, theme: theme)
+        return SourceEditorView(text: $store.draft, theme: theme, autofocus: store.isUntitled)
+            // A fresh note gets a fresh editor, so the caret lands in it straight away
+            .id(store.url?.absoluteString ?? "untitled-\(store.untitledSerial)")
             // An explicit document surface: without it the pane is transparent and
             // borrows whatever the window paints, which reads wrong in dark mode.
             .background(Color(nsColor: .textBackgroundColor))
@@ -233,6 +236,7 @@ struct ContentView: View {
     }
 
     private var subtitle: String {
+        if store.isUntitled { return store.isDirty ? "Not saved yet" : "" }
         guard let url = store.url else { return "" }
         let dirty = store.isDirty ? " • Unsaved" : ""
         // With a folder open, show the path relative to it — shorter and easier to read
@@ -270,14 +274,20 @@ struct ContentView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .disabled(store.url == nil)
+            .disabled(!store.hasDocument)
         }
 
+        ToolbarItem(placement: .primaryAction) {
+            Button { store.newNote() } label: {
+                Label("New Note", systemImage: "note.text.badge.plus")
+            }
+            .help("New note (⌘N)")
+        }
         ToolbarItem(placement: .primaryAction) {
             Button { store.save() } label: {
                 Label("Save", systemImage: "tray.and.arrow.down")
             }
-            .disabled(!store.isDirty)
+            .disabled(!store.isDirty && !store.isUntitled)
             .help("Save (⌘S)")
         }
         ToolbarSpacer(.fixed, placement: .primaryAction)
@@ -285,7 +295,7 @@ struct ContentView: View {
             Button { showsOutline.toggle() } label: {
                 Label("Outline", systemImage: "list.bullet.indent")
             }
-            .disabled(store.url == nil || !mode.showsPreview)
+            .disabled(!store.hasDocument || !mode.showsPreview)
             .help("Outline (⌥⌘0)")
         }
         ToolbarSpacer(.fixed, placement: .primaryAction)
@@ -307,7 +317,7 @@ struct ContentView: View {
     /// Floating font-size control, built with Tahoe's Liquid Glass
     @ViewBuilder
     private var zoomPill: some View {
-        if store.url != nil, mode.showsPreview {
+        if store.hasDocument, mode.showsPreview {
             GlassEffectContainer(spacing: 10) {
                 HStack(spacing: theme.base * 0.35) {
                     zoomButton("textformat.size.smaller", delta: -1)
