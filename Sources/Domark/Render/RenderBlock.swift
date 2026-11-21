@@ -2,7 +2,7 @@ import Foundation
 
 /// The middle layer between the cmark AST and the SwiftUI views.
 /// Converted once at parse time and then drawn directly, so no view has to know about Markdown.
-indirect enum RenderBlock: Equatable, Sendable {
+indirect enum RenderBlock: Hashable, Sendable {
     case heading(level: Int, text: AttributedString)
     case paragraph(AttributedString)
     case codeBlock(language: String?, code: AttributedString, isWide: Bool)
@@ -21,7 +21,7 @@ indirect enum RenderBlock: Equatable, Sendable {
     case math(String)
 }
 
-struct SizedImage: Equatable, Sendable {
+struct SizedImage: Hashable, Sendable {
     var url: URL?
     var alt: String
     /// From the tag's width/height attributes; nil keeps the image's own size
@@ -29,13 +29,13 @@ struct SizedImage: Equatable, Sendable {
     var height: CGFloat?
 }
 
-struct ListEntry: Equatable, Sendable {
+struct ListEntry: Hashable, Sendable {
     /// nil when this is not a task list
     var checked: Bool?
     var content: [RenderBlock]
 }
 
-enum ColumnAlign: Equatable, Sendable {
+enum ColumnAlign: Hashable, Sendable {
     case leading, center, trailing
 }
 
@@ -44,9 +44,24 @@ enum ColumnAlign: Equatable, Sendable {
 /// `ForEach(blocks.indices, id: \.self)` crashes when the document gets shorter:
 /// SwiftUI still holds the old indices and subscripts them into the new, shorter array.
 /// Iterating over values instead lets SwiftUI hold the value and never index back.
+///
+/// `fingerprint` is the block's hash, taken once where the block is built (off the main thread).
+/// Equality compares it instead of the content, so the page can tell what changed without
+/// walking every AttributedString on every update.
 struct IdentifiedBlock: Identifiable, Equatable, Sendable {
     let id: Int
     let block: RenderBlock
+    let fingerprint: Int
+
+    init(id: Int, block: RenderBlock) {
+        self.id = id
+        self.block = block
+        self.fingerprint = block.hashValue
+    }
+
+    static func == (a: IdentifiedBlock, b: IdentifiedBlock) -> Bool {
+        a.id == b.id && a.fingerprint == b.fingerprint
+    }
 }
 
 extension Array where Element == RenderBlock {

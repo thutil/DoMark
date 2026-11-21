@@ -11,8 +11,8 @@ struct ContentView: View {
     @AppStorage(OutlineSetting.key) private var showsOutline = false
 
     @State private var isTargeted = false
-    /// The first block on screen, for the outline's highlight
-    @State private var topBlockID: Int?
+    /// The first block on screen, for the outline's highlight — kept out of this view's own state
+    @State private var position = ReadingPosition()
     /// Set by the outline, consumed by the preview — which is the one holding the scroll proxy
     @State private var outlineJump: Int?
 
@@ -48,9 +48,9 @@ struct ContentView: View {
         .overlay(alignment: .bottomTrailing) { zoomPill }
         // After the zoom pill, so the pill floats over the page rather than the panel
         .inspector(isPresented: outlinePresented) {
-            OutlineView(
+            OutlinePanel(
                 outline: store.outline,
-                current: store.outline.current(topBlockID: topBlockID),
+                position: position,
                 onSelect: { outlineJump = $0.blockID }
             )
         }
@@ -149,71 +149,14 @@ struct ContentView: View {
     }
 
     private func preview(_ shown: [IdentifiedBlock]) -> some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: theme.blockSpacing) {
-                    ForEach(shown) { item in
-                        BlockView(block: item.block, theme: theme)
-                            .equatable()
-                            .id(item.id) // the anchor the find bar scrolls to
-                    }
-                }
-                .scrollTargetLayout()
-                .frame(maxWidth: theme.contentWidth, alignment: .leading)
-                .padding(.horizontal, mode == .split ? theme.base * 1.6 : theme.pagePadding)
-                .padding(.vertical, theme.pagePadding)
-                .frame(maxWidth: .infinity) // centre the column in the window
-            }
-            // A new file should start at the top, not inherit the previous file's scroll offset
-            .id(store.url)
-            .onScrollTargetVisibilityChange(idType: Int.self, threshold: 0.01) { visible in
-                topBlockID = visible.min()
-            }
-            .onChange(of: outlineJump) {
-                guard let outlineJump else { return }
-                reveal(outlineJump, with: proxy, anchor: .top)
-                self.outlineJump = nil // so picking the same heading again still fires
-            }
-            // Both are needed: stepping onto a hit in another block changes the id, while
-            // stepping between two hits inside the same block only changes the index.
-            .onChange(of: find.currentBlockID) { reveal(find.currentBlockID, with: proxy) }
-            .onChange(of: find.index) { reveal(find.currentBlockID, with: proxy) }
-            .environment(\.openURL, OpenURLAction { url in
-                guard let target = Anchor.target(of: url) else { return .systemAction }
-                if let id = Anchor.block(for: target, in: store.anchors) {
-                    reveal(id, with: proxy, anchor: .top)
-                }
-                // A link to a heading that is not there does nothing — it must never
-                // escape to the browser as a made-up URL
-                return .handled
-            })
-        }
-        .textSelection(.enabled)
-        .background(Color(nsColor: .textBackgroundColor))
-        .overlay(alignment: .top) {
-            if find.isPresented {
-                FindBarView(find: find, theme: theme)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-            }
-        }
-        .overlay {
-            if isTargeted {
-                RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(Color.accentColor, lineWidth: 3)
-                    .padding(6)
-                    .transition(.opacity)
-            }
-        }
-        .animation(.snappy(duration: 0.18), value: isTargeted)
-        .animation(.snappy(duration: 0.2), value: find.isPresented)
-    }
-
-    /// Find lands a match in the middle of the page; a heading belongs at the top of it
-    private func reveal(_ blockID: Int?, with proxy: ScrollViewProxy, anchor: UnitPoint = .center) {
-        guard let blockID else { return }
-        withAnimation(.snappy(duration: 0.25)) {
-            proxy.scrollTo(blockID, anchor: anchor)
-        }
+        PreviewPane(
+            blocks: shown,
+            theme: theme,
+            isSplit: mode == .split,
+            isTargeted: isTargeted,
+            position: position,
+            outlineJump: $outlineJump
+        )
     }
 
     /// The file changed on disk while the user has unsaved edits — let them choose, never silently clobber either side
