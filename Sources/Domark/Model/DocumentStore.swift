@@ -226,7 +226,7 @@ final class DocumentStore {
             if let fallback = try? String(contentsOf: url, encoding: .isoLatin1) {
                 text = fallback
             } else {
-                loadError = error.localizedDescription
+                loadError = FileErrorDescription.reading(url, error: error)
                 draft = ""
                 savedSource = ""
                 isDirty = false
@@ -293,7 +293,7 @@ final class DocumentStore {
     private static func showSaveError(_ error: Error) {
         let alert = NSAlert()
         alert.messageText = "Couldn’t Save"
-        alert.informativeText = error.localizedDescription
+        alert.informativeText = FileErrorDescription.describe(error)
         alert.runModal()
     }
 
