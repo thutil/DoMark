@@ -26,20 +26,15 @@ enum FolderScanner {
 
     struct Result {
         var tree: [FileNode]
-        /// Every directory visited, **including ones with no markdown yet** — these get watched.
-        /// Watching only what is in the tree would miss the first .md dropped into an empty folder.
-        var directories: [URL]
     }
 
     /// Scans recursively and **prunes directories that contain no markdown**,
     /// otherwise the sidebar fills with empty folders and the files get lost in them.
     static func scan(_ folder: URL) -> Result {
-        var directories: [URL] = [folder]
-        let tree = walk(folder, depth: 0, directories: &directories)
-        return Result(tree: tree, directories: directories)
+        Result(tree: walk(folder, depth: 0))
     }
 
-    private static func walk(_ folder: URL, depth: Int, directories: inout [URL]) -> [FileNode] {
+    private static func walk(_ folder: URL, depth: Int) -> [FileNode] {
         guard depth < maxDepth else { return [] }
 
         let contents = (try? FileManager.default.contentsOfDirectory(
@@ -55,8 +50,7 @@ enum FolderScanner {
             let name = url.lastPathComponent
             if isDirectory(url) {
                 guard !ignored.contains(name) else { continue }
-                directories.append(url)
-                let children = walk(url, depth: depth + 1, directories: &directories)
+                let children = walk(url, depth: depth + 1)
                 guard !children.isEmpty else { continue } // no markdown inside, so do not show it
                 subdirectories.append(FileNode(url: url, name: name, children: children))
             } else if DocumentStore.isReadable(url) {

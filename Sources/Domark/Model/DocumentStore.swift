@@ -89,8 +89,8 @@ final class DocumentStore {
     }
 
     @ObservationIgnored private var fileWatcher: FileWatcher?
-    /// Watches every directory in the tree, not just the root, so adds/removes inside subfolders show up immediately
-    @ObservationIgnored private var folderWatchers: [URL: FileWatcher] = [:]
+    /// One recursive FSEvents stream for the whole folder, so adds/removes inside subfolders show up immediately
+    @ObservationIgnored private var folderWatcher: FolderWatcher?
     @ObservationIgnored private var renderTask: Task<Void, Never>?
     @ObservationIgnored private var isAdjustingSelection = false
 
@@ -162,6 +162,8 @@ final class DocumentStore {
     func openFolder(_ url: URL) {
         folder = url
         recents.note(url, isFolder: true)
+        folderWatcher?.stop()
+        folderWatcher = FolderWatcher(url: url) { [weak self] in self?.rescan() }
         rescan()
         // Open the first file right away so the window is never blank
         if let first = FolderScanner.flatten(tree).first {
@@ -198,19 +200,6 @@ final class DocumentStore {
         let result = FolderScanner.scan(folder)
         // Only assign when something actually changed, otherwise the sidebar flickers on every event
         if tree != result.tree { tree = result.tree }
-        syncFolderWatchers(result.directories)
-    }
-
-    /// Attach/detach watchers to match the current set of directories — called after every scan
-    private func syncFolderWatchers(_ directories: [URL]) {
-        let wanted = Set(directories)
-        for (url, watcher) in folderWatchers where !wanted.contains(url) {
-            watcher.stop()
-            folderWatchers[url] = nil
-        }
-        for url in wanted where folderWatchers[url] == nil {
-            folderWatchers[url] = FileWatcher(url: url) { [weak self] in self?.rescan() }
-        }
     }
 
     // MARK: - Reading and writing
@@ -378,8 +367,8 @@ final class DocumentStore {
     func close() {
         guard confirmDiscard() else { return }
         closeDocument()
-        folderWatchers.values.forEach { $0.stop() }
-        folderWatchers.removeAll()
+        folderWatcher?.stop()
+        folderWatcher = nil
         folder = nil
         tree = []
     }
